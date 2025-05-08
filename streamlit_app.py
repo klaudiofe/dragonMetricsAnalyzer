@@ -100,6 +100,15 @@ def analyze_subfolders(df, url_column, traffic_column):
     # Use advertools to parse URLs
     url_df = adv.url_to_df(unique_urls[url_column].tolist())
     
+    # Merge the traffic data with the URL analysis
+    url_df = pd.merge(
+        url_df,
+        unique_urls,
+        left_on='url',
+        right_on=url_column,
+        how='left'
+    )
+    
     # Get all dir_ columns
     dir_columns = [col for col in url_df.columns if col.startswith('dir_')]
     
