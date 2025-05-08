@@ -5,7 +5,6 @@ from urllib.parse import urlparse
 import io
 import base64
 import re
-import advertools as adv
 
 # Set page title and configuration
 st.set_page_config(page_title="Dragon Metrics Traffic Analyzer", layout="centered")
@@ -86,82 +85,6 @@ def get_table_download_link(df, filename="results.xlsx"):
     href = f'<a href="data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,{b64}" download="{filename}">Download Results Excel File</a>'
     return href
 
-# Add new function for subfolder analysis
-def analyze_subfolders(df, url_column, traffic_column):
-    # Create a copy of the dataframe to avoid modifying the original
-    analysis_df = df.copy()
-    
-    # Clean URL column - replace NaN with empty string
-    analysis_df[url_column] = analysis_df[url_column].fillna('')
-    
-    # Get unique URLs and their traffic
-    unique_urls = analysis_df[[url_column, traffic_column]].drop_duplicates()
-    
-    # Use advertools to parse URLs
-    url_df = adv.url_to_df(unique_urls[url_column].tolist())
-    
-    # Merge the traffic data with the URL analysis
-    url_df = pd.merge(
-        url_df,
-        unique_urls,
-        left_on='url',
-        right_on=url_column,
-        how='left'
-    )
-    
-    # Get all dir_ columns
-    dir_columns = [col for col in url_df.columns if col.startswith('dir_')]
-    
-    # Create a list to store subfolder analysis
-    subfolder_data = []
-    
-    # For each dir_ column, create subfolder analysis
-    for dir_col in dir_columns:
-        # Group by the directory level and calculate metrics
-        dir_analysis = url_df.groupby(dir_col).agg({
-            traffic_column: ['sum', 'count']
-        }).reset_index()
-        
-        # Flatten the multi-level columns
-        dir_analysis.columns = ['Subfolder', 'Total Traffic', 'Number of URLs']
-        
-        # Add the subfolder data
-        subfolder_data.append(dir_analysis)
-    
-    # Combine all subfolder analyses
-    progressive_analysis = pd.concat(subfolder_data, ignore_index=True)
-    
-    # Remove rows with NaN subfolders
-    progressive_analysis = progressive_analysis.dropna(subset=['Subfolder'])
-    
-    # Calculate total traffic and URLs for percentage calculations
-    total_traffic = progressive_analysis['Total Traffic'].sum()
-    total_urls = progressive_analysis['Number of URLs'].sum()
-    
-    # Calculate percentages
-    progressive_analysis['Traffic Split'] = (progressive_analysis['Total Traffic'] / total_traffic * 100).round(2)
-    progressive_analysis['URL Split'] = (progressive_analysis['Number of URLs'] / total_urls * 100).round(2)
-    
-    # Format the percentage columns
-    progressive_analysis['Traffic Split'] = progressive_analysis['Traffic Split'].apply(lambda x: f"{x}%")
-    progressive_analysis['URL Split'] = progressive_analysis['URL Split'].apply(lambda x: f"{x}%")
-    
-    # Sort by total traffic
-    progressive_analysis = progressive_analysis.sort_values('Total Traffic', ascending=False)
-    
-    # For the full path analysis
-    subfolder_analysis = analysis_df.groupby(url_column).agg({
-        traffic_column: ['sum', 'count']
-    }).reset_index()
-    
-    # Flatten the multi-level columns
-    subfolder_analysis.columns = ['Subfolder', 'Total Traffic', 'Number of URLs']
-    
-    # Sort by total traffic
-    subfolder_analysis = subfolder_analysis.sort_values('Total Traffic', ascending=False)
-    
-    return subfolder_analysis, progressive_analysis
-
 # Main analysis section
 if uploaded_file is not None:
     try:
@@ -203,23 +126,6 @@ if uploaded_file is not None:
                     metric_col2.metric("Translation Matches Only", f"{int(keyword_only)}")
                     metric_col3.metric("Both Matches", f"{int(both_matches)}")
                     metric_col4.metric("TOTAL Relevant Traffic", f"{int(total_relevant_traffic)}")
-
-                    # Add Subfolder Analysis Section
-                    st.subheader("Subfolder Traffic Analysis")
-                    subfolder_analysis, progressive_analysis = analyze_subfolders(filtered_df, url_column, traffic_column)
-                    
-                    # Display path analysis
-                    st.subheader("Full Path Analysis")
-                    st.dataframe(subfolder_analysis)
-                    
-                    # Display progressive subfolder analysis
-                    st.subheader("Progressive Subfolder Analysis")
-                    st.dataframe(progressive_analysis)
-                    
-                    # Create a bar chart for top subfolders by traffic
-                    top_subfolders = progressive_analysis.head(10)  # Show top 10 subfolders
-                    st.subheader("Top 10 Subfolders by Traffic")
-                    st.bar_chart(top_subfolders.set_index('Subfolder')['Total Traffic'])
 
                     summary_df = pd.DataFrame({
                         "Dimension": ["URL matches only", "Translation matches only", "URL AND Translation matches", "TOTAL relevant traffic (URL OR Translation)"],
