@@ -5,6 +5,7 @@ from urllib.parse import urlparse
 import io
 import base64
 import re
+import advertools as adv
 
 # Set page title and configuration
 st.set_page_config(page_title="Dragon Metrics Traffic Analyzer", layout="centered")
@@ -85,6 +86,31 @@ def get_table_download_link(df, filename="results.xlsx"):
     href = f'<a href="data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,{b64}" download="{filename}">Download Results Excel File</a>'
     return href
 
+# Add new function for subfolder analysis
+def analyze_subfolders(df, url_column, traffic_column):
+    # Create a copy of the dataframe to avoid modifying the original
+    analysis_df = df.copy()
+    
+    # Use advertools to parse URLs
+    url_df = adv.url_to_df(analysis_df[url_column])
+    
+    # Merge the parsed URL data with the original dataframe
+    analysis_df = pd.concat([analysis_df, url_df], axis=1)
+    
+    # Group by subfolder and calculate traffic metrics
+    subfolder_analysis = analysis_df.groupby('path').agg({
+        traffic_column: ['sum', 'mean', 'count'],
+        url_column: 'count'
+    }).reset_index()
+    
+    # Rename columns for clarity
+    subfolder_analysis.columns = ['Subfolder', 'Total Traffic', 'Average Traffic', 'Number of URLs']
+    
+    # Sort by total traffic
+    subfolder_analysis = subfolder_analysis.sort_values('Total Traffic', ascending=False)
+    
+    return subfolder_analysis
+
 # Main analysis section
 if uploaded_file is not None:
     try:
@@ -126,6 +152,18 @@ if uploaded_file is not None:
                     metric_col2.metric("Translation Matches Only", f"{int(keyword_only)}")
                     metric_col3.metric("Both Matches", f"{int(both_matches)}")
                     metric_col4.metric("TOTAL Relevant Traffic", f"{int(total_relevant_traffic)}")
+
+                    # Add Subfolder Analysis Section
+                    st.subheader("Subfolder Traffic Analysis")
+                    subfolder_analysis = analyze_subfolders(filtered_df, url_column, traffic_column)
+                    
+                    # Display subfolder analysis
+                    st.dataframe(subfolder_analysis)
+                    
+                    # Create a bar chart for top subfolders by traffic
+                    top_subfolders = subfolder_analysis.head(10)  # Show top 10 subfolders
+                    st.subheader("Top 10 Subfolders by Traffic")
+                    st.bar_chart(top_subfolders.set_index('Subfolder')['Total Traffic'])
 
                     summary_df = pd.DataFrame({
                         "Dimension": ["URL matches only", "Translation matches only", "URL AND Translation matches", "TOTAL relevant traffic (URL OR Translation)"],
