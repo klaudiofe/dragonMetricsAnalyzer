@@ -15,13 +15,13 @@ with st.sidebar:
     st.markdown("""
     1. Go to Dragon Metrics > Organic Rankings: [Organic Keywords](https://app.dragonmetrics.com/competitor-research/ranking/organic/keywords?url=www.google.com.cn&country=cn&context=SubDomain)
     2. Click "Export to Excel" and download the file
-    3. Upload your downloaded file below
+    3. Upload your downloaded xlsx file
     4. Configure parameters if needed
     5. Click "Analyze Traffic Data" to see results
     """)
 
 # File upload section
-st.header("Upload Data")
+st.header("Dragon Metrics Traffic Analyzer")
 uploaded_file = st.file_uploader("Upload Dragon Metrics Excel file", type=["xlsx", "xls"])
 
 # Helper function to extract subfolders
