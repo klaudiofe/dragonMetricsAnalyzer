@@ -102,11 +102,11 @@ def analyze_subfolders(df, url_column, traffic_column):
     
     # Group by path and calculate traffic metrics
     subfolder_analysis = analysis_df.groupby('path').agg({
-        traffic_column: ['sum', 'mean', 'count']
+        traffic_column: ['sum', 'count']
     }).reset_index()
     
     # Flatten the multi-level columns
-    subfolder_analysis.columns = ['Subfolder', 'Total Traffic', 'Average Traffic', 'Number of URLs']
+    subfolder_analysis.columns = ['Subfolder', 'Total Traffic', 'Number of URLs']
     
     # Sort by total traffic
     subfolder_analysis = subfolder_analysis.sort_values('Total Traffic', ascending=False)
@@ -144,11 +144,23 @@ def analyze_subfolders(df, url_column, traffic_column):
     
     # Group by progressive path and calculate metrics
     progressive_analysis = exploded_df.groupby('progressive_paths').agg({
-        traffic_column: ['sum', 'mean', 'count']
+        traffic_column: ['sum', 'count']
     }).reset_index()
     
     # Flatten the multi-level columns
-    progressive_analysis.columns = ['Subfolder', 'Total Traffic', 'Average Traffic', 'Number of URLs']
+    progressive_analysis.columns = ['Subfolder', 'Total Traffic', 'Number of URLs']
+    
+    # Calculate total traffic and URLs for percentage calculations
+    total_traffic = progressive_analysis['Total Traffic'].sum()
+    total_urls = progressive_analysis['Number of URLs'].sum()
+    
+    # Calculate percentages
+    progressive_analysis['Traffic Split'] = (progressive_analysis['Total Traffic'] / total_traffic * 100).round(2)
+    progressive_analysis['URL Split'] = (progressive_analysis['Number of URLs'] / total_urls * 100).round(2)
+    
+    # Format the percentage columns
+    progressive_analysis['Traffic Split'] = progressive_analysis['Traffic Split'].apply(lambda x: f"{x}%")
+    progressive_analysis['URL Split'] = progressive_analysis['URL Split'].apply(lambda x: f"{x}%")
     
     # Sort by total traffic
     progressive_analysis = progressive_analysis.sort_values('Total Traffic', ascending=False)
