@@ -108,18 +108,42 @@ def analyze_subfolders(df, url_column, traffic_column):
     # Sort by total traffic
     subfolder_analysis = subfolder_analysis.sort_values('Total Traffic', ascending=False)
     
-    # Add directory level analysis
-    dir_columns = [col for col in url_df.columns if col.startswith('dir_')]
-    if dir_columns:
-        dir_analysis = analysis_df.groupby(dir_columns[0]).agg({
-            traffic_column: ['sum', 'mean', 'count']
-        }).reset_index()
-        dir_analysis.columns = ['First Level Directory', 'Total Traffic', 'Average Traffic', 'Number of URLs']
-        dir_analysis = dir_analysis.sort_values('Total Traffic', ascending=False)
-    else:
-        dir_analysis = pd.DataFrame()
+    # Create progressive path analysis
+    progressive_paths = []
     
-    return subfolder_analysis, dir_analysis
+    # Get all unique paths
+    all_paths = analysis_df['path'].unique()
+    
+    for path in all_paths:
+        # Split the path into components
+        components = path.strip('/').split('/')
+        
+        # Create progressive paths
+        for i in range(1, len(components) + 1):
+            progressive_path = '/' + '/'.join(components[:i]) + '/'
+            progressive_paths.append(progressive_path)
+    
+    # Create a new dataframe with progressive paths
+    progressive_df = pd.DataFrame({'progressive_path': progressive_paths})
+    
+    # Merge with original data
+    analysis_df['progressive_path'] = analysis_df['path'].apply(
+        lambda x: '/' + '/'.join(x.strip('/').split('/')[:i]) + '/' 
+        for i in range(1, len(x.strip('/').split('/')) + 1)
+    )
+    
+    # Group by progressive path and calculate metrics
+    progressive_analysis = analysis_df.groupby('progressive_path').agg({
+        traffic_column: ['sum', 'mean', 'count']
+    }).reset_index()
+    
+    # Flatten the multi-level columns
+    progressive_analysis.columns = ['Subfolder', 'Total Traffic', 'Average Traffic', 'Number of URLs']
+    
+    # Sort by total traffic
+    progressive_analysis = progressive_analysis.sort_values('Total Traffic', ascending=False)
+    
+    return subfolder_analysis, progressive_analysis
 
 # Main analysis section
 if uploaded_file is not None:
@@ -165,20 +189,19 @@ if uploaded_file is not None:
 
                     # Add Subfolder Analysis Section
                     st.subheader("Subfolder Traffic Analysis")
-                    subfolder_analysis, dir_analysis = analyze_subfolders(filtered_df, url_column, traffic_column)
+                    subfolder_analysis, progressive_analysis = analyze_subfolders(filtered_df, url_column, traffic_column)
                     
-                    # Display subfolder analysis
-                    st.subheader("Path Analysis")
+                    # Display path analysis
+                    st.subheader("Full Path Analysis")
                     st.dataframe(subfolder_analysis)
                     
-                    # Display directory level analysis if available
-                    if not dir_analysis.empty:
-                        st.subheader("First Level Directory Analysis")
-                        st.dataframe(dir_analysis)
+                    # Display progressive subfolder analysis
+                    st.subheader("Progressive Subfolder Analysis")
+                    st.dataframe(progressive_analysis)
                     
                     # Create a bar chart for top subfolders by traffic
-                    top_subfolders = subfolder_analysis.head(10)  # Show top 10 subfolders
-                    st.subheader("Top 10 Paths by Traffic")
+                    top_subfolders = progressive_analysis.head(10)  # Show top 10 subfolders
+                    st.subheader("Top 10 Subfolders by Traffic")
                     st.bar_chart(top_subfolders.set_index('Subfolder')['Total Traffic'])
 
                     summary_df = pd.DataFrame({
