@@ -100,53 +100,30 @@ def analyze_subfolders(df, url_column, traffic_column):
     # Use advertools to parse URLs
     url_df = adv.url_to_df(unique_urls[url_column].tolist())
     
-    # Merge the parsed URL data with the original dataframe
-    analysis_df = pd.concat([analysis_df, url_df], axis=1)
-    
-    # Group by path and calculate traffic metrics
-    subfolder_analysis = analysis_df.groupby('path').agg({
-        traffic_column: ['sum', 'count']
-    }).reset_index()
-    
-    # Flatten the multi-level columns
-    subfolder_analysis.columns = ['Subfolder', 'Total Traffic', 'Number of URLs']
-    
-    # Sort by total traffic
-    subfolder_analysis = subfolder_analysis.sort_values('Total Traffic', ascending=False)
-    
-    # Create progressive path analysis using dir_ columns
+    # Get all dir_ columns
     dir_columns = [col for col in url_df.columns if col.startswith('dir_')]
     
-    # Create a list to store all progressive paths
-    progressive_paths = []
+    # Create a list to store subfolder analysis
+    subfolder_data = []
     
-    # For each URL, create progressive paths using dir_ columns
-    for _, row in url_df.iterrows():
-        current_path = ''
-        for dir_col in dir_columns:
-            if pd.notna(row[dir_col]):
-                current_path += '/' + row[dir_col]
-                progressive_paths.append(current_path)
+    # For each dir_ column, create subfolder analysis
+    for dir_col in dir_columns:
+        # Group by the directory level and calculate metrics
+        dir_analysis = url_df.groupby(dir_col).agg({
+            traffic_column: ['sum', 'count']
+        }).reset_index()
+        
+        # Flatten the multi-level columns
+        dir_analysis.columns = ['Subfolder', 'Total Traffic', 'Number of URLs']
+        
+        # Add the subfolder data
+        subfolder_data.append(dir_analysis)
     
-    # Create a new dataframe with progressive paths
-    progressive_df = pd.DataFrame({'progressive_path': progressive_paths})
+    # Combine all subfolder analyses
+    progressive_analysis = pd.concat(subfolder_data, ignore_index=True)
     
-    # Merge with original data to get traffic information
-    progressive_analysis = pd.merge(
-        progressive_df,
-        analysis_df[[url_column, traffic_column]],
-        left_on='progressive_path',
-        right_on=url_column,
-        how='left'
-    )
-    
-    # Group by progressive path and calculate metrics
-    progressive_analysis = progressive_analysis.groupby('progressive_path').agg({
-        traffic_column: ['sum', 'count']
-    }).reset_index()
-    
-    # Flatten the multi-level columns
-    progressive_analysis.columns = ['Subfolder', 'Total Traffic', 'Number of URLs']
+    # Remove rows with NaN subfolders
+    progressive_analysis = progressive_analysis.dropna(subset=['Subfolder'])
     
     # Calculate total traffic and URLs for percentage calculations
     total_traffic = progressive_analysis['Total Traffic'].sum()
@@ -162,6 +139,17 @@ def analyze_subfolders(df, url_column, traffic_column):
     
     # Sort by total traffic
     progressive_analysis = progressive_analysis.sort_values('Total Traffic', ascending=False)
+    
+    # For the full path analysis
+    subfolder_analysis = analysis_df.groupby('path').agg({
+        traffic_column: ['sum', 'count']
+    }).reset_index()
+    
+    # Flatten the multi-level columns
+    subfolder_analysis.columns = ['Subfolder', 'Total Traffic', 'Number of URLs']
+    
+    # Sort by total traffic
+    subfolder_analysis = subfolder_analysis.sort_values('Total Traffic', ascending=False)
     
     return subfolder_analysis, progressive_analysis
 
