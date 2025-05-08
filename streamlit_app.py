@@ -150,7 +150,7 @@ def analyze_subfolders(df, url_column, traffic_column):
     progressive_analysis = progressive_analysis.sort_values('Total Traffic', ascending=False)
     
     # For the full path analysis
-    subfolder_analysis = analysis_df.groupby('path').agg({
+    subfolder_analysis = analysis_df.groupby(url_column).agg({
         traffic_column: ['sum', 'count']
     }).reset_index()
     
