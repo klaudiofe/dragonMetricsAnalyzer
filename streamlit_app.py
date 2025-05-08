@@ -94,8 +94,11 @@ def analyze_subfolders(df, url_column, traffic_column):
     # Clean URL column - replace NaN with empty string
     analysis_df[url_column] = analysis_df[url_column].fillna('')
     
+    # Get unique URLs and their traffic
+    unique_urls = analysis_df[[url_column, traffic_column]].drop_duplicates()
+    
     # Use advertools to parse URLs
-    url_df = adv.url_to_df(analysis_df[url_column])
+    url_df = adv.url_to_df(unique_urls[url_column].tolist())
     
     # Merge the parsed URL data with the original dataframe
     analysis_df = pd.concat([analysis_df, url_df], axis=1)
@@ -111,39 +114,34 @@ def analyze_subfolders(df, url_column, traffic_column):
     # Sort by total traffic
     subfolder_analysis = subfolder_analysis.sort_values('Total Traffic', ascending=False)
     
-    # Create progressive path analysis
+    # Create progressive path analysis using dir_ columns
+    dir_columns = [col for col in url_df.columns if col.startswith('dir_')]
+    
+    # Create a list to store all progressive paths
     progressive_paths = []
     
-    # Get all unique paths and filter out empty paths
-    all_paths = [path for path in analysis_df['path'].unique() if path and not pd.isna(path)]
-    
-    for path in all_paths:
-        # Split the path into components
-        components = path.strip('/').split('/')
-        
-        # Create progressive paths
-        for i in range(1, len(components) + 1):
-            progressive_path = '/' + '/'.join(components[:i]) + '/'
-            progressive_paths.append(progressive_path)
+    # For each URL, create progressive paths using dir_ columns
+    for _, row in url_df.iterrows():
+        current_path = ''
+        for dir_col in dir_columns:
+            if pd.notna(row[dir_col]):
+                current_path += '/' + row[dir_col]
+                progressive_paths.append(current_path)
     
     # Create a new dataframe with progressive paths
     progressive_df = pd.DataFrame({'progressive_path': progressive_paths})
     
-    # Function to create progressive paths for a single URL
-    def create_progressive_paths(path):
-        if pd.isna(path) or not path:
-            return []
-        components = path.strip('/').split('/')
-        return ['/' + '/'.join(components[:i]) + '/' for i in range(1, len(components) + 1)]
-    
-    # Create progressive paths for each URL
-    analysis_df['progressive_paths'] = analysis_df['path'].apply(create_progressive_paths)
-    
-    # Explode the progressive paths into separate rows
-    exploded_df = analysis_df.explode('progressive_paths')
+    # Merge with original data to get traffic information
+    progressive_analysis = pd.merge(
+        progressive_df,
+        analysis_df[[url_column, traffic_column]],
+        left_on='progressive_path',
+        right_on=url_column,
+        how='left'
+    )
     
     # Group by progressive path and calculate metrics
-    progressive_analysis = exploded_df.groupby('progressive_paths').agg({
+    progressive_analysis = progressive_analysis.groupby('progressive_path').agg({
         traffic_column: ['sum', 'count']
     }).reset_index()
     
