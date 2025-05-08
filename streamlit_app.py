@@ -91,6 +91,9 @@ def analyze_subfolders(df, url_column, traffic_column):
     # Create a copy of the dataframe to avoid modifying the original
     analysis_df = df.copy()
     
+    # Clean URL column - replace NaN with empty string
+    analysis_df[url_column] = analysis_df[url_column].fillna('')
+    
     # Use advertools to parse URLs
     url_df = adv.url_to_df(analysis_df[url_column])
     
@@ -111,8 +114,8 @@ def analyze_subfolders(df, url_column, traffic_column):
     # Create progressive path analysis
     progressive_paths = []
     
-    # Get all unique paths
-    all_paths = analysis_df['path'].unique()
+    # Get all unique paths and filter out empty paths
+    all_paths = [path for path in analysis_df['path'].unique() if path and not pd.isna(path)]
     
     for path in all_paths:
         # Split the path into components
@@ -126,14 +129,21 @@ def analyze_subfolders(df, url_column, traffic_column):
     # Create a new dataframe with progressive paths
     progressive_df = pd.DataFrame({'progressive_path': progressive_paths})
     
-    # Merge with original data
-    analysis_df['progressive_path'] = analysis_df['path'].apply(
-        lambda x: '/' + '/'.join(x.strip('/').split('/')[:i]) + '/' 
-        for i in range(1, len(x.strip('/').split('/')) + 1)
-    )
+    # Function to create progressive paths for a single URL
+    def create_progressive_paths(path):
+        if pd.isna(path) or not path:
+            return []
+        components = path.strip('/').split('/')
+        return ['/' + '/'.join(components[:i]) + '/' for i in range(1, len(components) + 1)]
+    
+    # Create progressive paths for each URL
+    analysis_df['progressive_paths'] = analysis_df['path'].apply(create_progressive_paths)
+    
+    # Explode the progressive paths into separate rows
+    exploded_df = analysis_df.explode('progressive_paths')
     
     # Group by progressive path and calculate metrics
-    progressive_analysis = analysis_df.groupby('progressive_path').agg({
+    progressive_analysis = exploded_df.groupby('progressive_paths').agg({
         traffic_column: ['sum', 'mean', 'count']
     }).reset_index()
     
